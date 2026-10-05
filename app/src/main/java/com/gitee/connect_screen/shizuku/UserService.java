@@ -12,6 +12,7 @@ import android.util.Log;
 
 import android.os.RemoteException;
 import android.view.Display;
+import android.view.DisplayInfo;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.MotionEventHidden;
@@ -44,6 +45,10 @@ public class UserService extends IUserService.Stub  {
     private volatile Process touchRelayProcess;
     private Thread touchRelayThread;
     private Thread touchRelayErrorThread;
+    private Thread touchDisplayThread;
+    private IDisplayManager touchDisplayManager;
+    private int[] touchGeometry;
+    private int touchReferenceRotation, touchBaseRotation;
     private final Object touchEventLock = new Object();
     private long touchDownTime = 0;
     private float touchX, touchY;
@@ -297,7 +302,7 @@ public class UserService extends IUserService.Stub  {
     @Override
     public synchronized void startTouchRotation(String devicePath, int rotation,
             int targetWidth, int targetHeight, int displayId) throws RemoteException {
-        startTouchRotationInternal(devicePath, rotation, targetWidth, targetHeight, displayId, null);
+        startTouchRotationInternal(devicePath, rotation, targetWidth, targetHeight, 0, displayId, null);
     }
 
     @Override
@@ -305,15 +310,60 @@ public class UserService extends IUserService.Stub  {
             int targetWidth, int targetHeight, int displayId, double[] coefficients) throws RemoteException {
         if (coefficients == null || coefficients.length != 6) throw new RemoteException("Invalid affine matrix");
         for (double value : coefficients) if (!Double.isFinite(value)) throw new RemoteException("Nonfinite affine matrix");
-        startTouchRotationInternal(devicePath, rotation, targetWidth, targetHeight, displayId, coefficients.clone());
+        startTouchRotationAdaptive(devicePath, rotation, targetWidth, targetHeight, 0, displayId, coefficients);
+    }
+
+    @Override
+    public synchronized void startTouchRotationAdaptive(String devicePath, int rotation,
+            int referenceWidth, int referenceHeight, int referencePhoneRotation, int displayId,
+            double[] coefficients) throws RemoteException {
+        if (coefficients != null) {
+            if (coefficients.length != 6) throw new RemoteException("Invalid affine matrix");
+            for (double value : coefficients) if (!Double.isFinite(value)) throw new RemoteException("Nonfinite affine matrix");
+        }
+        startTouchRotationInternal(devicePath, rotation, referenceWidth, referenceHeight,
+                referencePhoneRotation, displayId, coefficients == null ? null : coefficients.clone());
+    }
+
+    private int[] readPhoneGeometry() {
+        if (touchDisplayManager == null) touchDisplayManager = IDisplayManager.Stub.asInterface(
+                SystemServiceHelper.getSystemService(Context.DISPLAY_SERVICE));
+        DisplayInfo info = touchDisplayManager.getDisplayInfo(Display.DEFAULT_DISPLAY);
+        if (info == null || info.logicalWidth <= 0 || info.logicalHeight <= 0
+                || info.rotation < 0 || info.rotation > 3) {
+            throw new IllegalStateException("Phone logical display is unavailable");
+        }
+        return new int[] {info.logicalWidth, info.logicalHeight, info.rotation};
+    }
+
+    @Override public int[] getTouchRotationGeometry() {
+        synchronized (touchEventLock) {
+            int[] geometry = touchGeometry == null ? readPhoneGeometry() : touchGeometry;
+            return new int[] {geometry[0], geometry[1], geometry[2], touchRotationRunning
+                    ? (touchBaseRotation + geometry[2] - touchReferenceRotation + 4) % 4 : -1};
+        }
+    }
+
+    private void releaseFailedTouch(Process process, Throwable error) {
+        if (touchRotationRunning) Log.e("UserService", "touch rotation failed; releasing external input", error);
+        process.destroyForcibly();
+        synchronized (touchEventLock) {
+            if (touchRelayProcess == process) {
+                touchRotationRunning = false;
+                cancelTouchLocked();
+                lastTouchDownRaw = null;
+            }
+        }
     }
 
     private void startTouchRotationInternal(String devicePath, int rotation,
-            int targetWidth, int targetHeight, int displayId, final double[] affine) throws RemoteException {
+            int targetWidth, int targetHeight, int referencePhoneRotation, int displayId,
+            final double[] affine) throws RemoteException {
         // Native relay verifies exact name, USB bus, MT axes and direct-input property.
         if (!("auto".equals(devicePath) || (devicePath != null
                 && devicePath.matches("/dev/input/event[0-9]+") && !devicePath.equals("/dev/input/event2")))
                 || rotation < 0 || rotation > 3
+                || referencePhoneRotation < 0 || referencePhoneRotation > 3
                 || targetWidth <= 0 || targetHeight <= 0 || displayId != 0) {
             throw new RemoteException("touch rotation: invalid device/rotation/size/display");
         }
@@ -326,6 +376,11 @@ public class UserService extends IUserService.Stub  {
             touchInputManager = IInputManager.Stub.asInterface(
                     SystemServiceHelper.getSystemService(Context.INPUT_SERVICE));
             if (touchInputManager == null) throw new IllegalStateException("input service unavailable");
+            synchronized (touchEventLock) {
+                touchGeometry = readPhoneGeometry();
+                touchReferenceRotation = referencePhoneRotation;
+                touchBaseRotation = rotation;
+            }
             Process process = new ProcessBuilder("/data/local/tmp/touch_relay", devicePath).start();
             touchRelayProcess = process;
             CountDownLatch ready = new CountDownLatch(1);
@@ -352,6 +407,34 @@ public class UserService extends IUserService.Stub  {
             }
             touchDisplayId = displayId;
             touchRotationRunning = true;
+            // Runs in the shell UserService while the APP is in the background.
+            // Only PHONE display 0 supplies runtime dimensions/rotation. External
+            // viewport orientation never overrides the app's requested visual rotation.
+            touchDisplayThread = new Thread(() -> {
+                try {
+                    while (touchRotationRunning && touchRelayProcess == process) {
+                        int[] next = readPhoneGeometry();
+                        synchronized (touchEventLock) {
+                            if (!touchRotationRunning || touchRelayProcess != process) break;
+                            if (!java.util.Arrays.equals(next, touchGeometry)) {
+                                cancelTouchLocked();
+                                lastTouchDownRaw = null;
+                                touchGeometry = next;
+                                Log.i("UserService", "phone touch geometry=" + next[0] + "x" + next[1]
+                                        + " phoneRotation=" + next[2] + " effectiveTransform="
+                                        + (rotation + next[2] - referencePhoneRotation + 4) % 4);
+                            }
+                        }
+                        Thread.sleep(100);
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    if (touchRotationRunning && touchRelayProcess == process) releaseFailedTouch(process, ignored);
+                } catch (Throwable error) {
+                    releaseFailedTouch(process, error);
+                }
+            }, "touch-phone-display");
+            touchDisplayThread.start();
             touchRelayThread = new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
@@ -360,11 +443,12 @@ public class UserService extends IUserService.Stub  {
                         if (fields.length != 3) throw new IllegalStateException("invalid relay line: " + line);
                         int rawX = Integer.parseInt(fields[1]);
                         int rawY = Integer.parseInt(fields[2]);
-                        float[] point = affine == null
-                                ? TouchRotationTransform.map(rawX, rawY, rotation, targetWidth, targetHeight)
-                                : TouchRotationTransform.mapAffine(rawX, rawY, affine, targetWidth, targetHeight);
                         synchronized (touchEventLock) {
                             if (!touchRotationRunning || touchRelayProcess != process) break;
+                            int[] geometry = touchGeometry;
+                            float[] point = TouchRotationTransform.mapAdaptive(rawX, rawY, rotation, affine,
+                                    targetWidth, targetHeight, referencePhoneRotation,
+                                    geometry[0], geometry[1], geometry[2]);
                             int action;
                             if ("D".equals(fields[0])) {
                                 cancelTouchLocked();
@@ -386,7 +470,7 @@ public class UserService extends IUserService.Stub  {
                     }
                     if (touchRotationRunning) throw new IllegalStateException("touch_relay ended unexpectedly");
                 } catch (Throwable e) {
-                    if (touchRotationRunning) Log.e("UserService", "touch rotation failed; releasing external input", e);
+                    releaseFailedTouch(process, e);
                 } finally {
                     process.destroyForcibly();
                     synchronized (touchEventLock) {
@@ -400,7 +484,7 @@ public class UserService extends IUserService.Stub  {
             }, "touch-rotation");
             touchRelayThread.start();
             Log.i("UserService", "touch rotation started rotation=" + rotation + " display=" + displayId
-                    + " uid=" + android.os.Process.myUid());
+                    + " uid=" + android.os.Process.myUid() + " phoneGeometry=" + java.util.Arrays.toString(touchGeometry));
         } catch (Throwable e) {
             stopTouchRotation();
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
@@ -472,9 +556,16 @@ public class UserService extends IUserService.Stub  {
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); }
             }
             if (touchRelayErrorThread != null) touchRelayErrorThread.interrupt();
+            if (touchDisplayThread != null) {
+                touchDisplayThread.interrupt();
+                try { touchDisplayThread.join(1000); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
             touchRelayProcess = null;
             touchRelayThread = null;
             touchRelayErrorThread = null;
+            touchDisplayThread = null;
+            synchronized (touchEventLock) { touchGeometry = null; }
             Log.i("UserService", "touch rotation stopped");
         }
     }

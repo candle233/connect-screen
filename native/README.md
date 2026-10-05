@@ -32,7 +32,16 @@ In the test app, authorize Shizuku and open the Miracast display under 屏幕.
 触控自动跟随画面旋转 defaults off. When enabled, successful RotationDialog ->
 ChangeRotation requests update the touch transform automatically. 不强制 stops
 the relay. InputReader orientation and Display.getRotation are never used to
-override the chosen visual state. The saved preferences contain degrees in
+override the chosen visual state. Separately, the shell UserService polls the
+PHONE's Display 0 logical size and rotation every 100 ms while the relay runs.
+The Mate 30 was measured switching 1080x1920/rotation0 to
+1920x1080/rotation3; the external rotation stayed 1. The proxy composes that
+phone coordinate-frame change with the saved panel map/affine calibration,
+scales into the current logical range, and cancels an ongoing gesture when the
+frame changes. It does not restart/grab another device on a phone rotation.
+MainActivity configuration recreation retains the existing UserService; actual
+APP exit still stops it. Runtime status shows current size and effective map.
+The saved preferences contain degrees in
 touch_rotation_visual / touch_rotation_transform and the enabled flag.
 APP/UserService startup only attaches lifecycle guards; it never resumes a grab
 from saved preferences. A later rotation request or explicit switch action
@@ -44,7 +53,9 @@ ACTION_CANCEL if needed. 恢复默认触控 additionally kills stale relay proce
 clears touch preferences and turns the automatic switch off.
 Missing UserService, failed grab, failed injection and unexpected relay exit
 are reported in the UI/logcat. Rotation uses raw 0..16384, the requested four
-formulas, and final clamping to width-1/height-1.
+formulas, and final clamping to current width-1/height-1. Each new calibration
+also saves its reference phone size/rotation. Older measured profiles retain
+their original portrait reference (1080x1920, phone rotation0).
 
 Physical tests on 2026-10-05 passed visual 90 with transform 1. Pure transform 3
 at visual 270 was mirrored. The five-target calibration captured matched native

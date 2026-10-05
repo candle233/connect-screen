@@ -82,6 +82,10 @@ public final class TouchRotationController {
         }
     }
     private static void applyTransform(Context context, int visualRotation) throws Exception {
+        String suffix = "_" + visualRotation * 90;
+        int referenceWidth = preferences(context).getInt("touch_rotation_reference_width" + suffix, 1080);
+        int referenceHeight = preferences(context).getInt("touch_rotation_reference_height" + suffix, 1920);
+        int referenceRotation = preferences(context).getInt("touch_rotation_reference_phone" + suffix, 0);
         int transform = preferences(context).getInt("touch_rotation_mapping_" + visualRotation * 90,
                 visualRotationToTouchRotation(visualRotation));
         // Earlier calibration builds stored the visual angle as a nominal label.
@@ -96,7 +100,7 @@ public final class TouchRotationController {
                 if (row.length() != 4) throw new IllegalStateException("标定采样无效，请重新标定");
                 for (int j = 0; j < 4; j++) measured[i][j] = row.getDouble(j);
             }
-            transform = TouchAffineCalibration.nearestQuarterTurn(measured);
+            transform = TouchAffineCalibration.nearestQuarterTurn(measured, referenceWidth, referenceHeight);
             preferences(context).edit().putInt("touch_rotation_mapping_" + visualRotation * 90, transform).apply();
         }
         if (transform < 0) {
@@ -104,8 +108,8 @@ public final class TouchRotationController {
             throw new IllegalStateException("该画面角度的触控映射尚未通过实测，已恢复原始触摸");
         }
         double[] affine = savedAffine(context, visualRotation);
-        if (affine == null) requireService().startTouchRotation("auto", transform, 1080, 1920, 0);
-        else requireService().startTouchRotationAffine("auto", transform, 1080, 1920, 0, affine);
+        requireService().startTouchRotationAdaptive("auto", transform, referenceWidth, referenceHeight,
+                referenceRotation, 0, affine);
         preferences(context).edit().putInt(TRANSFORM, transform * 90).apply();
     }
     public static synchronized void setAutoFollow(Context context, boolean enabled) throws Exception {
@@ -150,10 +154,15 @@ public final class TouchRotationController {
             for (double value : sample) row.put(value);
             points.put(row);
         }
-        requireService().startTouchRotationAffine("auto", transform, 1080, 1920, 0, coefficients);
+        int[] reference = requireService().getTouchRotationGeometry();
+        requireService().startTouchRotationAdaptive("auto", transform, reference[0], reference[1],
+                reference[2], 0, coefficients);
         preferences(context).edit().putBoolean(ENABLED, false).putInt(TRANSFORM, transform * 90)
                 .putInt("touch_rotation_mapping_" + visual * 90, transform)
                 .putString("touch_rotation_affine_" + visual * 90, matrix.toString())
+                .putInt("touch_rotation_reference_width_" + visual * 90, reference[0])
+                .putInt("touch_rotation_reference_height_" + visual * 90, reference[1])
+                .putInt("touch_rotation_reference_phone_" + visual * 90, reference[2])
                 .putString("touch_rotation_samples_" + visual * 90, points.toString()).apply();
     }
     private static void stopProxy(Context context) throws Exception {

@@ -161,7 +161,7 @@ public class MainActivity extends AppCompatActivity implements IMainActivity {
     protected void onDestroy() {
         if (isFinishing()) TouchRotationController.onAppExit();
         super.onDestroy();
-        State.unbindUserService();
+        if (isFinishing()) State.unbindUserService();
         Shizuku.removeRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER);
 
         State.currentActivity = null;

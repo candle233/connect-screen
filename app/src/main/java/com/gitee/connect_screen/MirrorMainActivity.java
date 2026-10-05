@@ -162,7 +162,7 @@ public class MirrorMainActivity extends AppCompatActivity implements IMainActivi
     protected void onDestroy() {
         if (isFinishing()) TouchRotationController.onAppExit();
         super.onDestroy();
-        State.unbindUserService();
+        if (isFinishing()) State.unbindUserService();
         Shizuku.removeRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER);
 
         State.currentActivity = null;

@@ -64,10 +64,12 @@ public class DisplayDetailFragment extends Fragment {
             try {
                 IUserService service = State.userService;
                 if (service != null && service.isTouchRotationActive()) {
+                    int[] geometry = service.getTouchRotationGeometry();
                     int visual = TouchRotationController.preferences(requireContext()).getInt(TouchRotationController.VISUAL, -1);
                     int transform = TouchRotationController.preferences(requireContext()).getInt(TouchRotationController.TRANSFORM, -1);
                     touchRotationStatus.setText("触控代理运行中：画面 " + (visual < 0 ? "未记录" : visual + "°")
-                            + "，触控 " + transform + "°（单指，Display 0）");
+                            + "，标定触控 " + transform + "°；手机 " + geometry[0] + "×" + geometry[1]
+                            + " / " + geometry[2]*90 + "°，当前变换 " + geometry[3]*90 + "°（单指）");
                     touchRotationRequested = true;
                 } else if (touchRotationRequested) {
                     touchRotationRequested = false;

@@ -113,7 +113,8 @@ public class TouchRotationTestActivity extends Activity {
                     double rmse = TouchAffineCalibration.rmse(samples, coefficients);
                     if (rmse > 1920 * .02) throw new IllegalStateException("标定误差过大：" + Math.round(rmse) + "px，请重测");
                     int visual = TouchRotationController.savedVisualRotation(TouchRotationTestActivity.this);
-                    int transform = visual == 1 || visual == 3 ? TouchAffineCalibration.nearestQuarterTurn(samples) : visual;
+                    int[] geometry = State.userService.getTouchRotationGeometry();
+                    int transform = TouchAffineCalibration.nearestQuarterTurn(samples, geometry[0], geometry[1]);
                     TouchRotationController.saveCalibration(TouchRotationTestActivity.this, visual, transform, samples, coefficients);
                     runOnUiThread(() -> {
                         calibrating = fitting = false;

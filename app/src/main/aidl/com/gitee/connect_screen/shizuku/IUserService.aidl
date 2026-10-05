@@ -33,4 +33,10 @@ interface IUserService {
 
     void startTouchRotationAffine(String devicePath, int rotation, int targetWidth,
                                  int targetHeight, int displayId, in double[] coefficients) = 14;
+
+    void startTouchRotationAdaptive(String devicePath, int rotation, int referenceWidth,
+                                   int referenceHeight, int referencePhoneRotation, int displayId,
+                                   in double[] coefficients) = 15;
+
+    int[] getTouchRotationGeometry() = 16;
 }

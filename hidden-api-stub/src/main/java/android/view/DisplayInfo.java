@@ -4,6 +4,8 @@ public class DisplayInfo {
     public DisplayAddress address;
     public String uniqueId;
     public int rotation;
+    public int logicalWidth;
+    public int logicalHeight;
     public float renderFrameRate;
     public int defaultModeId;
     public int userPreferredModeId;

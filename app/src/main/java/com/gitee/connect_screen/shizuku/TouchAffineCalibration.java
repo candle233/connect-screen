@@ -50,12 +50,15 @@ public final class TouchAffineCalibration {
         return Math.sqrt(squared / points.length);
     }
     public static int nearestQuarterTurn(double[][] points) {
+        return nearestQuarterTurn(points, 1080, 1920);
+    }
+    public static int nearestQuarterTurn(double[][] points, int width, int height) {
         double bestError = Double.POSITIVE_INFINITY;
         int bestRotation = 1;
-        for (int rotation : new int[] {1, 3}) {
+        for (int rotation = 0; rotation < 4; rotation++) {
             double error = 0;
             for (double[] p : points) {
-                float[] mapped = TouchRotationTransform.map((int)p[0], (int)p[1], rotation, 1080, 1920);
+                float[] mapped = TouchRotationTransform.map((int)p[0], (int)p[1], rotation, width, height);
                 double dx = mapped[0]-p[2], dy = mapped[1]-p[3]; error += dx*dx + dy*dy;
             }
             if (error < bestError) { bestError = error; bestRotation = rotation; }
