@@ -1,0 +1,22 @@
+{
+  "measured_on": "2026-10-05",
+  "device": "Huawei Mate 30",
+  "input_name": "ILITEK ILITEK-TP",
+  "display_name": "EXTERNAL_DISPLAY",
+  "injection_display_id": 0,
+  "injection_size": [1080, 1920],
+  "raw_axis_range": [0, 16384],
+  "visual_degrees": 270,
+  "transform_quarter_turn": 1,
+  "affine": [-0.00007425878236750492, 0.06573822336597124, -14.557421214150228, -0.11479732282217693, 0.0003062840721685389, 1887.7076027188589],
+  "samples_raw_xy_target_xy": [
+    [14119, 1644, 108, 264.9000244140625],
+    [14182, 15391, 972, 264.9000244140625],
+    [1332, 2272, 108, 1736.0999755859375],
+    [1338, 14735, 972, 1736.0999755859375],
+    [7784, 8181, 540, 1000.5]
+  ],
+  "fit_rmse_px": 20.93269375403792,
+  "physical_retest_reply": "正确",
+  "note": "Evidence backup only. Not automatically loaded or grabbed on startup. Recalibrate if display setup changes."
+}

@@ -49,7 +49,13 @@ public class State {
         public void onServiceConnected(ComponentName componentName, IBinder binder) {
             State.log("user service connected");
             State.userService = IUserService.Stub.asInterface(binder);
-            if (State.currentActivity.get() != null) {
+            try {
+                TouchRotationController.attachClient(State.userService);
+            } catch (Exception e) {
+                State.log("触控生命周期保护连接失败：" + e.getMessage());
+                State.userService = null;
+            }
+            if (State.currentActivity != null && State.currentActivity.get() != null) {
                 State.currentActivity.get().runOnUiThread(() -> {
                     State.resumeJob();
                 });
@@ -58,6 +64,7 @@ public class State {
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
+            State.userService = null;
             State.log("user service disconnected");
         }
     };

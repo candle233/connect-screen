@@ -11,6 +11,7 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.gitee.connect_screen.R;
 import com.gitee.connect_screen.State;
+import com.gitee.connect_screen.TouchRotationController;
 import com.gitee.connect_screen.job.ChangeRotation;
 
 public class RotationDialog {
@@ -30,6 +31,10 @@ public class RotationDialog {
         );
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         rotationSpinner.setAdapter(adapter);
+        int saved = TouchRotationController.savedVisualRotation(context);
+        if (TouchRotationController.preferences(context).getInt("touch_rotation_display", -1) == displayId) {
+            rotationSpinner.setSelection(saved + 1);
+        }
 
         new AlertDialog.Builder(context)
                 .setTitle("修改旋转方向（仅在安卓15上测试有效）")
@@ -50,4 +55,4 @@ public class RotationDialog {
                 .setNegativeButton("取消", null)
                 .show();
     }
-} 
+}

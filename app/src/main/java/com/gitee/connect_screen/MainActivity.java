@@ -92,7 +92,6 @@ public class MainActivity extends AppCompatActivity implements IMainActivity {
         super.onCreate(savedInstanceState);
         Shizuku.addRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER);
         if (ShizukuUtils.hasPermission() && State.userService == null) {
-            Shizuku.peekUserService(State.userServiceArgs, State.userServiceConnection);
             Shizuku.bindUserService(State.userServiceArgs, State.userServiceConnection);
         }
 
@@ -160,6 +159,7 @@ public class MainActivity extends AppCompatActivity implements IMainActivity {
 
     @Override
     protected void onDestroy() {
+        if (isFinishing()) TouchRotationController.onAppExit();
         super.onDestroy();
         State.unbindUserService();
         Shizuku.removeRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER);
@@ -273,4 +273,4 @@ public class MainActivity extends AppCompatActivity implements IMainActivity {
             logRecyclerView.scrollToPosition(logAdapter.getItemCount() - 1);
         }
     }
-} 
+}

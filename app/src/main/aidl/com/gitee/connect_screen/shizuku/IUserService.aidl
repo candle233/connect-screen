@@ -17,4 +17,20 @@ interface IUserService {
     void stopListenVolumeKey() = 6;
 
     boolean isLoopActive() = 7;
+
+    void startTouchRotation(String devicePath, int rotation, int targetWidth,
+                           int targetHeight, int displayId) = 8;
+
+    void stopTouchRotation() = 9;
+
+    boolean isTouchRotationActive() = 10;
+
+    void attachTouchRotationClient(IBinder appToken, IBinder shizukuToken) = 11;
+
+    void recoverDefaultTouch() = 12;
+
+    long[] getLastTouchDownRaw() = 13;
+
+    void startTouchRotationAffine(String devicePath, int rotation, int targetWidth,
+                                 int targetHeight, int displayId, in double[] coefficients) = 14;
 }

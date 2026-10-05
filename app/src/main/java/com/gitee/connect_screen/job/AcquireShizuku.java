@@ -20,6 +20,9 @@ public class AcquireShizuku implements Job {
         if (ShizukuUtils.hasPermission()) {
             State.log("已经获得 Shizuku 权限");
             acquired = true;
+            if (State.userService == null) {
+                Shizuku.bindUserService(State.userServiceArgs, State.userServiceConnection);
+            }
         } else {
             if (hasRequestedPermission) {
                 State.log("获取 Shizuku 权限失败");

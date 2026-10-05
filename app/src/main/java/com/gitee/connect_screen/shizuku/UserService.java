@@ -4,16 +4,29 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.display.IDisplayManager;
+import android.hardware.input.IInputManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 
 import android.os.RemoteException;
 import android.view.Display;
+import android.view.InputDevice;
+import android.view.MotionEvent;
+import android.view.MotionEventHidden;
 
 import androidx.annotation.Keep;
 
 import com.gitee.connect_screen.State;
+import com.gitee.connect_screen.BuildConfig;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import dev.rikka.tools.refine.Refine;
 
 import rikka.shizuku.ShizukuBinderWrapper;
 import rikka.shizuku.SystemServiceHelper;
@@ -27,13 +40,41 @@ public class UserService extends IUserService.Stub  {
     private volatile boolean userExited = false;
     private Thread screenOffLoopThread;
     private static final long SCREEN_OFF_CHECK_INTERVAL = 100; // 检查间隔（毫秒），缩短为100ms以更快响应系统唤醒
+    private volatile boolean touchRotationRunning = false;
+    private volatile Process touchRelayProcess;
+    private Thread touchRelayThread;
+    private Thread touchRelayErrorThread;
+    private final Object touchEventLock = new Object();
+    private long touchDownTime = 0;
+    private float touchX, touchY;
+    private int touchDisplayId;
+    private IInputManager touchInputManager;
+    private long[] lastTouchDownRaw;
+    private IBinder touchClientToken, touchShizukuToken;
+    private final IBinder.DeathRecipient touchOwnerDied = () -> {
+        Log.w("UserService", "touch rotation owner/Shizuku died; releasing grab");
+        stopTouchRotation();
+    };
+
+    private void installTouchCrashGuard() {
+        Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            try { stopTouchRotation(); }
+            finally {
+                if (previous != null) previous.uncaughtException(thread, error);
+                else System.exit(1);
+            }
+        });
+    }
 
     public UserService() {
+        installTouchCrashGuard();
         Log.i("UserService", "constructor");
     }
 
     @Keep
     public UserService(Context context) {
+        installTouchCrashGuard();
         this.context = context;
         Log.i("UserService", "constructor with Context: context=" + context.toString());
     }
@@ -44,6 +85,7 @@ public class UserService extends IUserService.Stub  {
     @Override
     public void destroy() {
         Log.i("UserService", "destroy");
+        stopTouchRotation();
         System.exit(0);
     }
 
@@ -194,7 +236,7 @@ public class UserService extends IUserService.Stub  {
                         setScreenPower(SurfaceControl.POWER_MODE_NORMAL);
                         if (context != null) {
                             Intent intent = new Intent("com.gitee.connect_screen.EXIT_PURE_BLACK");
-                            intent.setPackage("com.gitee.connect_screen");
+                            intent.setPackage(BuildConfig.APPLICATION_ID);
                             context.sendBroadcast(intent);
                         } else {
                             Log.i("UserService", "context is null, can not send EXIT_PURE_BLACK");
@@ -250,5 +292,231 @@ public class UserService extends IUserService.Stub  {
 
     public boolean isLoopActive() {
         return !userExited && listenVolumeKey;
+    }
+
+    @Override
+    public synchronized void startTouchRotation(String devicePath, int rotation,
+            int targetWidth, int targetHeight, int displayId) throws RemoteException {
+        startTouchRotationInternal(devicePath, rotation, targetWidth, targetHeight, displayId, null);
+    }
+
+    @Override
+    public synchronized void startTouchRotationAffine(String devicePath, int rotation,
+            int targetWidth, int targetHeight, int displayId, double[] coefficients) throws RemoteException {
+        if (coefficients == null || coefficients.length != 6) throw new RemoteException("Invalid affine matrix");
+        for (double value : coefficients) if (!Double.isFinite(value)) throw new RemoteException("Nonfinite affine matrix");
+        startTouchRotationInternal(devicePath, rotation, targetWidth, targetHeight, displayId, coefficients.clone());
+    }
+
+    private void startTouchRotationInternal(String devicePath, int rotation,
+            int targetWidth, int targetHeight, int displayId, final double[] affine) throws RemoteException {
+        // Native relay verifies exact name, USB bus, MT axes and direct-input property.
+        if (!("auto".equals(devicePath) || (devicePath != null
+                && devicePath.matches("/dev/input/event[0-9]+") && !devicePath.equals("/dev/input/event2")))
+                || rotation < 0 || rotation > 3
+                || targetWidth <= 0 || targetHeight <= 0 || displayId != 0) {
+            throw new RemoteException("touch rotation: invalid device/rotation/size/display");
+        }
+        stopTouchRotation();
+        try {
+            if (touchClientToken == null || !touchClientToken.isBinderAlive()
+                    || touchShizukuToken == null || !touchShizukuToken.isBinderAlive()) {
+                throw new IllegalStateException("APP/Shizuku lifecycle tokens are not connected");
+            }
+            touchInputManager = IInputManager.Stub.asInterface(
+                    SystemServiceHelper.getSystemService(Context.INPUT_SERVICE));
+            if (touchInputManager == null) throw new IllegalStateException("input service unavailable");
+            Process process = new ProcessBuilder("/data/local/tmp/touch_relay", devicePath).start();
+            touchRelayProcess = process;
+            CountDownLatch ready = new CountDownLatch(1);
+            AtomicReference<String> startupError = new AtomicReference<>("relay did not report READY");
+            touchRelayErrorThread = new Thread(() -> {
+                try (BufferedReader errors = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                    String line;
+                    while ((line = errors.readLine()) != null) {
+                        Log.i("UserService", "touch_relay: " + line);
+                        if (line.startsWith("READY grabbed ")) {
+                            startupError.set(null);
+                            ready.countDown();
+                        } else if (startupError.get() != null) startupError.set(line);
+                    }
+                } catch (Exception e) {
+                    Log.e("UserService", "touch rotation stderr", e);
+                } finally {
+                    ready.countDown();
+                }
+            }, "touch-relay-stderr");
+            touchRelayErrorThread.start();
+            if (!ready.await(3, TimeUnit.SECONDS) || startupError.get() != null || !process.isAlive()) {
+                throw new IllegalStateException(startupError.get() == null ? "relay exited" : startupError.get());
+            }
+            touchDisplayId = displayId;
+            touchRotationRunning = true;
+            touchRelayThread = new Thread(() -> {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while (touchRotationRunning && (line = reader.readLine()) != null) {
+                        String[] fields = line.trim().split("\\s+");
+                        if (fields.length != 3) throw new IllegalStateException("invalid relay line: " + line);
+                        int rawX = Integer.parseInt(fields[1]);
+                        int rawY = Integer.parseInt(fields[2]);
+                        float[] point = affine == null
+                                ? TouchRotationTransform.map(rawX, rawY, rotation, targetWidth, targetHeight)
+                                : TouchRotationTransform.mapAffine(rawX, rawY, affine, targetWidth, targetHeight);
+                        synchronized (touchEventLock) {
+                            if (!touchRotationRunning || touchRelayProcess != process) break;
+                            int action;
+                            if ("D".equals(fields[0])) {
+                                cancelTouchLocked();
+                                touchDownTime = SystemClock.uptimeMillis();
+                                lastTouchDownRaw = new long[] {rawX, rawY, touchDownTime};
+                                action = MotionEvent.ACTION_DOWN;
+                            } else if ("M".equals(fields[0])) action = MotionEvent.ACTION_MOVE;
+                            else if ("U".equals(fields[0])) action = MotionEvent.ACTION_UP;
+                            else throw new IllegalStateException("invalid relay action: " + fields[0]);
+                            if (touchDownTime == 0) continue;
+                            touchX = point[0]; touchY = point[1];
+                            injectTouchLocked(action);
+                            if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP) {
+                                Log.i("UserService", "touch rotation " + fields[0] + " raw=" + rawX + "," + rawY
+                                        + " mapped=" + touchX + "," + touchY + " display=" + touchDisplayId);
+                            }
+                            if (action == MotionEvent.ACTION_UP) touchDownTime = 0;
+                        }
+                    }
+                    if (touchRotationRunning) throw new IllegalStateException("touch_relay ended unexpectedly");
+                } catch (Throwable e) {
+                    if (touchRotationRunning) Log.e("UserService", "touch rotation failed; releasing external input", e);
+                } finally {
+                    process.destroyForcibly();
+                    synchronized (touchEventLock) {
+                        if (touchRelayProcess == process) {
+                            touchRotationRunning = false;
+                            cancelTouchLocked();
+                            lastTouchDownRaw = null;
+                        }
+                    }
+                }
+            }, "touch-rotation");
+            touchRelayThread.start();
+            Log.i("UserService", "touch rotation started rotation=" + rotation + " display=" + displayId
+                    + " uid=" + android.os.Process.myUid());
+        } catch (Throwable e) {
+            stopTouchRotation();
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            Log.e("UserService", "touch rotation start failed", e);
+            throw new RemoteException("touch rotation: " + e.getMessage());
+        }
+    }
+
+    private void injectTouchLocked(int action) {
+        MotionEvent event = MotionEvent.obtain(touchDownTime, SystemClock.uptimeMillis(),
+                action, touchX, touchY, 0);
+        try {
+            event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+            MotionEventHidden hidden = Refine.unsafeCast(event);
+            hidden.setDisplayId(touchDisplayId);
+            if (!touchInputManager.injectInputEvent(event, 0)) {
+                throw new IllegalStateException("injectInputEvent returned false");
+            }
+        } finally {
+            event.recycle();
+        }
+    }
+
+    private void cancelTouchLocked() {
+        try {
+            if (touchDownTime != 0) injectTouchLocked(MotionEvent.ACTION_CANCEL);
+        } catch (Throwable e) {
+            Log.e("UserService", "touch rotation cancel failed", e);
+        } finally {
+            touchDownTime = 0;
+        }
+    }
+
+    @Override
+    public synchronized void stopTouchRotation() {
+        touchRotationRunning = false;
+        Process process = touchRelayProcess;
+        try {
+            if (process != null) {
+                process.destroy();
+                if (!process.waitFor(500, TimeUnit.MILLISECONDS)) {
+                    process.destroyForcibly();
+                    if (!process.waitFor(1000, TimeUnit.MILLISECONDS)) {
+                        throw new IllegalStateException("touch_relay did not exit; external input release unconfirmed");
+                    }
+                }
+            }
+        } catch (InterruptedException e) {
+            if (process != null) {
+                process.destroyForcibly();
+                long deadline = SystemClock.uptimeMillis() + 1500;
+                while (process.isAlive() && SystemClock.uptimeMillis() < deadline) {
+                    try { process.waitFor(100, TimeUnit.MILLISECONDS); }
+                    catch (InterruptedException ignored) { /* Reap before restoring interruption. */ }
+                }
+                if (process.isAlive()) {
+                    throw new IllegalStateException("touch_relay did not exit after interruption");
+                }
+            }
+            Thread.currentThread().interrupt();
+        } finally {
+            synchronized (touchEventLock) {
+                cancelTouchLocked();
+                lastTouchDownRaw = null;
+            }
+            if (touchRelayThread != null) {
+                touchRelayThread.interrupt();
+                try { touchRelayThread.join(1000); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
+            if (touchRelayErrorThread != null) touchRelayErrorThread.interrupt();
+            touchRelayProcess = null;
+            touchRelayThread = null;
+            touchRelayErrorThread = null;
+            Log.i("UserService", "touch rotation stopped");
+        }
+    }
+
+    @Override
+    public boolean isTouchRotationActive() {
+        Process process = touchRelayProcess;
+        return touchRotationRunning && process != null && process.isAlive();
+    }
+
+    @Override
+    public synchronized void attachTouchRotationClient(IBinder appToken, IBinder shizukuToken)
+            throws RemoteException {
+        stopTouchRotation();
+        if (touchClientToken != null) touchClientToken.unlinkToDeath(touchOwnerDied, 0);
+        if (touchShizukuToken != null) touchShizukuToken.unlinkToDeath(touchOwnerDied, 0);
+        touchClientToken = touchShizukuToken = null;
+        if (appToken == null || shizukuToken == null) throw new RemoteException("Missing lifecycle token");
+        appToken.linkToDeath(touchOwnerDied, 0);
+        try { shizukuToken.linkToDeath(touchOwnerDied, 0); }
+        catch (RemoteException e) { appToken.unlinkToDeath(touchOwnerDied, 0); throw e; }
+        touchClientToken = appToken;
+        touchShizukuToken = shizukuToken;
+        // Attaching/restarting never starts a grab; only a new explicit configuration does.
+    }
+
+    @Override
+    public synchronized void recoverDefaultTouch() throws RemoteException {
+        stopTouchRotation();
+        try {
+            Process recovery = new ProcessBuilder("/system/bin/pkill", "-x", "touch_relay").start();
+            int code = recovery.waitFor();
+            if (code != 0 && code != 1) throw new IllegalStateException("pkill exit=" + code);
+            Log.i("UserService", "touch rotation recovery: relay processes terminated");
+        } catch (Exception e) {
+            throw new RemoteException("触控恢复失败：" + e.getMessage());
+        }
+    }
+
+    @Override public long[] getLastTouchDownRaw() {
+        synchronized (touchEventLock) {
+            return lastTouchDownRaw == null ? null : lastTouchDownRaw.clone();
+        }
     }
 }

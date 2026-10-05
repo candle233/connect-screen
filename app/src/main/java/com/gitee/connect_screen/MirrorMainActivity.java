@@ -96,7 +96,6 @@ public class MirrorMainActivity extends AppCompatActivity implements IMainActivi
         super.onCreate(savedInstanceState);
         Shizuku.addRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER);
         if (ShizukuUtils.hasPermission() && State.userService == null) {
-            Shizuku.peekUserService(State.userServiceArgs, State.userServiceConnection);
             Shizuku.bindUserService(State.userServiceArgs, State.userServiceConnection);
         }
 
@@ -161,6 +160,7 @@ public class MirrorMainActivity extends AppCompatActivity implements IMainActivi
 
     @Override
     protected void onDestroy() {
+        if (isFinishing()) TouchRotationController.onAppExit();
         super.onDestroy();
         State.unbindUserService();
         Shizuku.removeRequestPermissionResultListener(REQUEST_PERMISSION_RESULT_LISTENER);
@@ -224,4 +224,4 @@ public class MirrorMainActivity extends AppCompatActivity implements IMainActivi
             logRecyclerView.scrollToPosition(logAdapter.getItemCount() - 1);
         }
     }
-} 
+}

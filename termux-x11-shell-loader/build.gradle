@@ -9,6 +9,7 @@ else
 android.namespace 'com.gitee.connect_screen.shell_loader'
 android.defaultConfig.minSdkVersion 21
 android.compileSdkVersion 28
+android.buildToolsVersion "36.1.0"
 android.buildFeatures.buildConfig true
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8

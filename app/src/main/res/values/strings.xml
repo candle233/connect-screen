@@ -1,5 +1,11 @@
 <resources>
-    <string name="app_name">屏连</string>
+    <string name="app_name">屏连触控修正版</string>
+    <string name="touch_rotation_90">测试90°</string>
+    <string name="touch_rotation_270">测试270°</string>
+    <string name="touch_rotation_stop">关闭触控修正</string>
+    <string name="touch_rotation_idle">触控代理未运行；自动识别 ILITEK USB 触屏 → Display 0（单指）</string>
+    <string name="touch_rotation_auto">触控自动跟随画面旋转</string>
+    <string name="touch_rotation_reset">恢复默认触控</string>
     <string name="accessibility_service_description">用于在副屏上模拟触摸事件的无障碍服务</string>
     <string name="go_dark_button">切换暗色模式</string>
     <string name="back_button">返回按钮</string>

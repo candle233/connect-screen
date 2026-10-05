@@ -10,6 +10,8 @@ import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.IDisplayManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.DisplayCutout;
@@ -35,6 +37,7 @@ import com.gitee.connect_screen.dialog.ResolutionDialog;
 import com.gitee.connect_screen.dialog.BridgeDialog;
 import com.gitee.connect_screen.dialog.DpiDialog;
 import com.gitee.connect_screen.shizuku.WindowingMode;
+import com.gitee.connect_screen.shizuku.IUserService;
 
 public class DisplayDetailFragment extends Fragment {
     private static final String ARG_DISPLAY_ID = "display_id";
@@ -50,6 +53,33 @@ public class DisplayDetailFragment extends Fragment {
     private CheckBox autoOpenLastAppCheckbox;
     private Button floatingButtonToggle;
     private CheckBox forceLandscapeCheckbox;
+    private TextView touchRotationStatus;
+    private CheckBox touchAutoFollow;
+    private boolean touchControlBusy;
+    private final Handler touchStatusHandler = new Handler(Looper.getMainLooper());
+    private boolean touchRotationRequested;
+    private final Runnable touchStatusPoll = new Runnable() {
+        @Override public void run() {
+            if (touchRotationStatus == null) return;
+            try {
+                IUserService service = State.userService;
+                if (service != null && service.isTouchRotationActive()) {
+                    int visual = TouchRotationController.preferences(requireContext()).getInt(TouchRotationController.VISUAL, -1);
+                    int transform = TouchRotationController.preferences(requireContext()).getInt(TouchRotationController.TRANSFORM, -1);
+                    touchRotationStatus.setText("触控代理运行中：画面 " + (visual < 0 ? "未记录" : visual + "°")
+                            + "，触控 " + transform + "°（单指，Display 0）");
+                    touchRotationRequested = true;
+                } else if (touchRotationRequested) {
+                    touchRotationRequested = false;
+                    touchRotationStatus.setText("触控代理已停止并释放：请检查 USB / Shizuku 和 UserService 日志");
+                    showToast("触控修正已停止，请检查 USB 连接和日志");
+                }
+            } catch (Exception e) {
+                touchRotationStatus.setText("触控修正状态读取失败：" + e.getMessage());
+            }
+            touchStatusHandler.postDelayed(this, 1000);
+        }
+    };
 
     public static DisplayDetailFragment newInstance(int displayId) {
         DisplayDetailFragment fragment = new DisplayDetailFragment();
@@ -83,6 +113,32 @@ public class DisplayDetailFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_display_detail, container, false);
+        touchRotationStatus = view.findViewById(R.id.touch_rotation_status);
+        Button touch90 = view.findViewById(R.id.touch_rotation_90_button);
+        Button touch270 = view.findViewById(R.id.touch_rotation_270_button);
+        Button touchStop = view.findViewById(R.id.touch_rotation_stop_button);
+        Button touchReset = view.findViewById(R.id.touch_rotation_reset_button);
+        touchAutoFollow = view.findViewById(R.id.touch_rotation_auto_checkbox);
+        touchAutoFollow.setChecked(TouchRotationController.isAutoFollowEnabled(requireContext()));
+        View[] controls = {touch90, touch270, touchStop, touchReset, touchAutoFollow};
+        touch90.setOnClickListener(v -> changeTouchRotation(1, false, controls));
+        touch270.setOnClickListener(v -> changeTouchRotation(3, false, controls));
+        touchStop.setOnClickListener(v -> changeTouchRotation(-1, false, controls));
+        touchReset.setOnClickListener(v -> changeTouchRotation(-2, false, controls));
+        touchAutoFollow.setOnCheckedChangeListener((button, checked) -> {
+            if (!touchControlBusy) changeTouchRotation(-3, checked, controls);
+        });
+        view.findViewById(R.id.touch_rotation_test_canvas_button).setOnClickListener(v ->
+                startActivity(new Intent(requireContext(), TouchRotationTestActivity.class)));
+        view.findViewById(R.id.touch_rotation_calibrate_button).setOnClickListener(v -> {
+            try {
+                if (TouchRotationController.savedVisualRotation(requireContext()) < 0
+                        || State.userService == null || !State.userService.isTouchRotationActive()) {
+                    throw new IllegalStateException("请先选择画面角度并开启触控测试，再进行标定");
+                }
+                startActivity(new Intent(requireContext(), TouchRotationTestActivity.class).putExtra("calibrate", true));
+            } catch (Exception e) { showToast(e.getMessage()); }
+        });
         setImePolicyButton = view.findViewById(R.id.set_ime_policy_button);
         supportedModesToggle = view.findViewById(R.id.supported_modes_toggle);
         supportedModesText = view.findViewById(R.id.supported_modes_text);
@@ -289,7 +345,70 @@ public class DisplayDetailFragment extends Fragment {
             });
         }
 
+        touchStatusHandler.post(touchStatusPoll);
         return view;
+    }
+
+    private void changeTouchRotation(int rotation, boolean autoEnabled, View... buttons) {
+        IUserService service = State.userService;
+        if (service == null && (rotation >= 0 || (rotation == -3 && autoEnabled))) {
+            String error = "Shizuku UserService 未连接，请先启动 Shizuku 并授权此测试版";
+            touchRotationStatus.setText(error);
+            showToast(error);
+            touchControlBusy = true;
+            touchAutoFollow.setChecked(TouchRotationController.isAutoFollowEnabled(requireContext()));
+            touchControlBusy = false;
+            return;
+        }
+        touchControlBusy = true;
+        Context appContext = requireContext().getApplicationContext();
+        for (View button : buttons) button.setEnabled(false);
+        touchRotationStatus.setText("触控修正：正在切换…");
+        new Thread(() -> {
+            String message;
+            boolean active = false;
+            try {
+                if (rotation == -3) {
+                    TouchRotationController.setAutoFollow(appContext, autoEnabled);
+                    message = autoEnabled ? "自动跟随已开启；后续选择画面角度时自动同步" : "自动跟随已关闭，原始触摸已恢复";
+                } else if (rotation == -2) {
+                    TouchRotationController.reset(appContext);
+                    message = "已恢复默认触控：代理停止、配置清除、自动跟随关闭";
+                } else if (rotation < 0) {
+                    TouchRotationController.stop(appContext);
+                    message = "触控修正已关闭，原始触摸已恢复";
+                } else {
+                    TouchRotationController.startDebug(appContext, rotation);
+                    active = service.isTouchRotationActive();
+                    if (!active) throw new IllegalStateException("relay 未运行，请检查 UserService 日志");
+                    message = "触控修正已开启：" + (rotation == 1 ? "90°" : "270°");
+                }
+                active = service != null && service.isTouchRotationActive();
+            } catch (Exception e) {
+                message = "触控修正失败：" + e.getMessage();
+                State.log(message);
+            }
+            String result = message;
+            boolean running = active;
+            touchStatusHandler.post(() -> {
+                if (touchRotationStatus == null) return;
+                touchRotationRequested = running;
+                touchRotationStatus.setText(result);
+                touchAutoFollow.setChecked(TouchRotationController.isAutoFollowEnabled(appContext));
+                for (View button : buttons) button.setEnabled(true);
+                touchControlBusy = false;
+                showToast(result);
+            });
+        }, "touch-rotation-control").start();
+    }
+
+    @Override
+    public void onDestroyView() {
+        touchStatusHandler.removeCallbacksAndMessages(null);
+        touchRotationStatus = null;
+        touchAutoFollow = null;
+        touchControlBusy = false;
+        super.onDestroyView();
     }
 
     private void updateShizukuStatus() {
@@ -452,7 +571,7 @@ public class DisplayDetailFragment extends Fragment {
     
 // 添加新方法:
 private void updateUserRotationText(TextView rotationText) {
-    int rotation = display.getRotation();
+    int rotation = TouchRotationController.savedVisualRotation(requireContext());
     String rotationStr;
     switch(rotation) {
         case Surface.ROTATION_0:
@@ -468,9 +587,9 @@ private void updateUserRotationText(TextView rotationText) {
             rotationStr = "270°";
             break;
         default:
-            rotationStr = "未知";
+            rotationStr = "未记录 / 不强制";
     }
-    rotationText.setText("旋转角度: " + rotationStr);
+    rotationText.setText("画面旋转（本应用记录）: " + rotationStr);
 }
 
 private void showRotationDialog() {

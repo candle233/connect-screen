@@ -10,11 +10,11 @@ android {
     buildToolsVersion "36.1.0"
 
     defaultConfig {
-        applicationId "com.gitee.connect_screen"
+        applicationId "com.gitee.connect_screen.touchfix"
         minSdk 29
         targetSdk 34
-        versionCode 33
-        versionName "1.3.3"
+        versionCode 37
+        versionName "1.3.3-touchfix.5"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -78,4 +78,4 @@ dependencies {
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
-} 
+}
