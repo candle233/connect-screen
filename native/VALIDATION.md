@@ -35,6 +35,9 @@ Source branch: `touch-rotation-fix`. Phone logical portrait reference:
   automatic following. Phone/external logical sizes and rotations were unchanged.
   Measured calibration was backed up before this test and restored afterward
   with automatic following disabled and transform=-1, without grabbing input.
+- User then confirmed “原始触摸已恢复”. Automatic following was explicitly
+  enabled again in the UI; final phone geometry was 1920x1080/rotation3,
+  effective transform0. Relay PID7411 survived the final Home/background check.
 - Native tests rejected internal event2, rejected concurrent EVIOCGRAB and
   verified release after SIGTERM and parent death. A disconnected-device read
   failure was observed in an earlier test and also released its fd.
