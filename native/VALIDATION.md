@@ -91,4 +91,41 @@ shortcut, foreground connected-device service and default-enabled boot receiver.
 Previously measured calibration is preserved. Physical coordinate accuracy was
 not remeasured by the developer in this iteration. Unplug/injection failure uses
 a safe native-exit pause; it does not promise unattended recovery from every
-hardware/OS failure. Non-root Shizuku still needs startup after reboot.
+hardware/OS failure. Without the optional bootstrap below, non-root Shizuku
+still needs startup after reboot.
+
+## Local Shizuku bootstrap validation, 2026-10-06
+
+Version42 (1.3.3-touchfix.10) adds optional local authenticated ADB bootstrap.
+
+- USB recovery after the first reboot found the foreground touch service already
+  running (app PID9515), proving its boot receiver started. With the external
+  USB touchscreen unplugged during PC connection, verified ILITEK discovery
+  rejected startup and did not grab the internal phone touchscreen.
+- Huawei reports Wi-Fi ADB support but its wireless-debugging settings Activity
+  cannot be opened. Its actual AdbManager implementation was inspected. Only the
+  current access point was explicitly trusted; no wildcard network or persistent
+  system-property change was made. Existing WRITE_SECURE_SETTINGS permission and
+  adb_allowed_connection_time=0 were confirmed, not newly changed.
+- Generated the app-owned AndroidKeyStore RSA key. Only its public key was
+  exported. The native Android ADB authorization dialog fingerprint matched
+  ADB_PUBLIC_KEY_FINGERPRINT_REDACTED, and its persistent
+  authorization was verified with existing keys retained.
+- Killed Shizuku and enabled the optional bootstrap. The phone's local ADB client
+  started Shizuku. After persistent key approval, killing Shizuku again led to
+  automatic server PID15803 and UserService PID15834 without a PC starter command.
+  This exercises the real RSA token signature, ADB packet exchange and fixed
+  installed Shizuku starter; it does not prove post-reboot ADB availability.
+- Version42 ignores an obsolete UserService disconnect callback while the current
+  replacement Binder remains alive. Debug build and all 9 existing transformation
+  and calibration JUnit cases passed. Version42 installed successfully over the
+  test package, preserving calibration; the official package was not replaced.
+- User was asked to disconnect PC USB, reconnect the external touch panel,
+  reboot, unlock and connect the original Wi-Fi without opening Shizuku or the
+  shortcut. After the user's reply “好了”, `adb devices` and mDNS discovery were
+  empty, and 192.0.2.10:5555 refused connection. Physical touch result and the
+  foreground notification status have been requested. Fully unattended boot is
+  not established by this result; further diagnosis depends on that feedback.
+- A temporary location-service diagnostic did not resolve wireless availability;
+  location_mode was restored to its original value 0. No wm size/density,
+  system rotation, IDC or /system modifications were made.

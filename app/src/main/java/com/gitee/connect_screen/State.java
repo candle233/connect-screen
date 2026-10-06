@@ -65,6 +65,10 @@ public class State {
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
+            // A late disconnect from the old Shizuku generation must not discard
+            // an already connected, live replacement UserService.
+            IUserService active = State.userService;
+            if (active != null && active.asBinder().isBinderAlive()) return;
             State.userService = null;
             State.log("user service disconnected");
         }

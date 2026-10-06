@@ -126,6 +126,11 @@ public class DisplayDetailFragment extends Fragment {
         touchBoot.setChecked(TouchKeepAliveService.isBootEnabled(requireContext()));
         touchBoot.setOnCheckedChangeListener((button, checked) -> TouchRotationController.preferences(requireContext())
                 .edit().putBoolean(TouchKeepAliveService.BOOT, checked).commit());
+        CheckBox touchBootstrap = view.findViewById(R.id.touch_rotation_bootstrap_checkbox);
+        touchBootstrap.setChecked(WirelessShizukuBootstrap.isEnabled(requireContext()));
+        touchBootstrap.setEnabled(requireContext().getFileStreamPath("touch_bootstrap_adb.pub").exists());
+        touchBootstrap.setOnCheckedChangeListener((button, checked) -> TouchRotationController.preferences(requireContext())
+                .edit().putBoolean(WirelessShizukuBootstrap.ENABLED, checked).commit());
         view.findViewById(R.id.touch_rotation_pin_button).setOnClickListener(v ->
                 TouchQuickStartActivity.pinShortcut(requireActivity()));
         View[] controls = {touch90, touch270, touchStop, touchReset, touchAutoFollow};

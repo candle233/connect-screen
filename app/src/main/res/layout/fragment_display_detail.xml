@@ -69,6 +69,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="添加桌面“开启触控修正”按钮" />
+        <CheckBox
+            android:id="@+id/touch_rotation_bootstrap_checkbox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="手机自行启动Shizuku（需一次性授权）" />
 
         <TextView
             android:id="@+id/detail_text"

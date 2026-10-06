@@ -14,6 +14,18 @@ public class TouchQuickStartActivity extends Activity {
     private final Shizuku.OnRequestPermissionResultListener permissionResult = (code, result) -> finish();
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (getIntent().getBooleanExtra("prepare_wireless", false)) {
+            new Thread(() -> {
+                try { WirelessShizukuBootstrap.prepare(getApplicationContext()); }
+                catch (Exception e) { android.util.Log.e("TouchBootstrap", "Prepare key", e); }
+                finally { runOnUiThread(this::finish); }
+            }, "touch-bootstrap-prepare").start();
+            return;
+        }
+        if (getIntent().getBooleanExtra("enable_wireless", false)) {
+            TouchRotationController.preferences(this).edit()
+                    .putBoolean(WirelessShizukuBootstrap.ENABLED, true).commit();
+        }
         if (getIntent().getBooleanExtra("pin_shortcut", false)) {
             pinShortcut(this); finish(); return;
         }

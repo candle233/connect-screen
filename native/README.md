@@ -50,10 +50,34 @@ following. An already active proxy is left untouched. **开机自动开启触控
 defaults on. After boot/unlock the service waits for Shizuku and authorization,
 then resumes the saved measured configuration. Every new native start scans and
 verifies the external USB touch device again; saved event numbers are never used.
-Non-root Shizuku must still be started after reboot using wireless debugging (or
-ADB). The app cannot silently start the privileged Shizuku server itself. See
+Without the optional device-specific bootstrap below, non-root Shizuku must be
+started after reboot using wireless debugging (or ADB). See
 [Shizuku setup](https://shizuku.rikka.app/guide/setup/) and Android's
 [foreground service start exemptions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start).
+
+Version42 adds an optional Mate 30 local Shizuku bootstrap. Its preference
+`touch_rotation_wireless_bootstrap` defaults off; **手机自行启动Shizuku（需一次性授权）**
+controls it after provisioning. On this phone it has been enabled after one-time
+USB setup: the existing WRITE_SECURE_SETTINGS grant, authorization of only the
+current Wi-Fi access point in Android's trusted-network list, and approval of
+the app's own ADB public key. The private RSA signing key stays non-exportable
+in AndroidKeyStore. Existing PC/Shizuku ADB keys are retained.
+
+While foreground ownership is requested and Shizuku is absent, the service
+checks for active Wi-Fi, requests `adb_wifi_enabled`, and lets Android validate
+the network. It then authenticates to local 127.0.0.1:5555 and executes only the
+installed Shizuku library's fixed starter path. That legacy port was observed
+on this Huawei while Wi-Fi debugging was enabled; it is not assumed portable
+to other phones or guaranteed to survive reboot. Socket/header/checksum/channel
+validation and timeouts prevent a failed bootstrap from grabbing any input.
+The native relay starts only after Shizuku connects and verifies the ILITEK device.
+
+Local authentication and automatic Shizuku startup after killing the server
+were verified without a PC starter command. A subsequent real reboot currently
+has no reachable wireless ADB, so fully unattended boot is still under test.
+Revoking the key, clearing app data, changing Wi-Fi authorization or removing
+Shizuku may require provisioning again. Turning this checkbox off stops future
+bootstrap attempts; it does not kill a Shizuku server used by other apps.
 
 On this Mate 30, Huawei application startup management must be manual with
 self-start, associated start and background activity all allowed. The test app
@@ -66,7 +90,8 @@ after process/Shizuku loss; force-stop in system settings remains an explicit st
 测试90° / 测试270° are debug controls, and disable automatic following to avoid
 unexpected restarts during a test. 关闭触控修正 terminates/reaps the relay and sends
 ACTION_CANCEL if needed. 恢复默认触控 additionally kills stale relay processes,
-clears touch preferences and turns automatic following and boot startup off.
+clears touch preferences and turns automatic following, boot startup and the
+optional local Shizuku bootstrap off.
 Missing UserService, failed grab, failed injection and unexpected relay exit
 are reported in the UI/logcat. Rotation uses raw 0..16384, the requested four
 formulas, and final clamping to current width-1/height-1. Each new calibration

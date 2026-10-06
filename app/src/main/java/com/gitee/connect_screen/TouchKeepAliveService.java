@@ -37,7 +37,7 @@ public class TouchKeepAliveService extends Service {
     private IBinder previousService;
     private boolean foregroundReady;
     private boolean wasRunning;
-    private long bindAttempt, lastGeneration = -1;
+    private long bindAttempt, lastGeneration = -1, bootstrapAttempt;
     private volatile long nextAttempt;
     private volatile String status = "正在连接触控服务…";
     private final Shizuku.OnBinderReceivedListener binderReceived = () -> nextAttempt = 0;
@@ -132,8 +132,18 @@ public class TouchKeepAliveService extends Service {
         if (generation != lastGeneration) { lastGeneration = generation; wasRunning = false; nextAttempt = 0; }
         if (!Shizuku.pingBinder()) {
             wasRunning = false; previousService = null; bindAttempt = 0;
+            if (WirelessShizukuBootstrap.isEnabled(this)) {
+                long now = SystemClock.elapsedRealtime();
+                if (bootstrapAttempt == 0 || now - bootstrapAttempt > 10000) {
+                    bootstrapAttempt = now;
+                    try { update(WirelessShizukuBootstrap.start(this)); }
+                    catch (Exception e) { update("等待免电脑启动Shizuku：" + e.getMessage()); }
+                }
+                return;
+            }
             update("等待Shizuku启动；启动后自动恢复触控"); return;
         }
+        bootstrapAttempt = 0;
         if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             wasRunning = false;
             update("等待Shizuku授权，请点击桌面“开启触控修正”"); return;
