@@ -77,7 +77,12 @@ shortcut, foreground connected-device service and default-enabled boot receiver.
 - Updating to version40 triggered MY_PACKAGE_REPLACED: foreground service and
   relay PID31833 resumed without opening any app Activity. Real BOOT_COMPLETED
   cannot be simulated by non-root shell (protected broadcast); actual phone
-  reboot and user wireless-Shizuku startup confirmation are pending.
+  reboot was subsequently performed by the user. The previous Wi-Fi ADB
+  connection disappeared. The user reported that wireless debugging could not
+  be opened/found after reboot, so Shizuku was unavailable and automatic touch
+  restoration could not be validated. USB ADB recovery and inspection of this
+  Huawei's available debugging modes are pending. Fully unattended boot is not
+  established; the app cannot provide Shizuku's privileged bootstrap itself.
 - Force-stopping the test package removed the relay. Enable entry subsequently
   started PID32468. System force-stop intentionally remains effective.
 - Original official APK still installed; SHA256 unchanged:
