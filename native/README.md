@@ -1,7 +1,7 @@
 # Mate 30 single-finger touch relay
 
 The touchfix APK uses Shizuku's shell UserService to read this relay's stdout and
-inject rotated touchscreen MotionEvents into Display 0 (1080 x 1920).
+inject rotated touchscreen MotionEvents into Display 0 using its current size.
 The test application ID is `com.gitee.connect_screen.touchfix`.
 
 `touch_relay auto` scans `/dev/input/event*` and requires one device with the
@@ -39,18 +39,34 @@ The Mate 30 was measured switching 1080x1920/rotation0 to
 phone coordinate-frame change with the saved panel map/affine calibration,
 scales into the current logical range, and cancels an ongoing gesture when the
 frame changes. It does not restart/grab another device on a phone rotation.
-MainActivity configuration recreation retains the existing UserService; actual
-APP exit still stops it. Runtime status shows current size and effective map.
+MainActivity configuration recreation retains the existing UserService. The
+foreground touch service owns the connection independently of the Activity;
+closing the settings or removing its recent task does not intentionally stop it.
+Runtime status shows current size and effective map.
 The saved preferences contain degrees in
 touch_rotation_visual / touch_rotation_transform and the enabled flag.
-APP/UserService startup only attaches lifecycle guards; it never resumes a grab
-from saved preferences. A later rotation request or explicit switch action
-verifies the external device again before starting.
+The desktop shortcut **开启触控修正** enables the foreground service and automatic
+following. An already active proxy is left untouched. **开机自动开启触控修正**
+defaults on. After boot/unlock the service waits for Shizuku and authorization,
+then resumes the saved measured configuration. Every new native start scans and
+verifies the external USB touch device again; saved event numbers are never used.
+Non-root Shizuku must still be started after reboot using wireless debugging (or
+ADB). The app cannot silently start the privileged Shizuku server itself. See
+[Shizuku setup](https://shizuku.rikka.app/guide/setup/) and Android's
+[foreground service start exemptions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start).
+
+On this Mate 30, Huawei application startup management must be manual with
+self-start, associated start and background activity all allowed. The test app
+and Shizuku have also been added to the system's battery optimization whitelist.
+Without that whitelist Huawei killed even a foreground service when its task was
+removed, and rejected its sticky restart. This configuration is a prerequisite,
+not a guarantee against all Android/OEM kills. A sticky service retries binding
+after process/Shizuku loss; force-stop in system settings remains an explicit stop.
 
 测试90° / 测试270° are debug controls, and disable automatic following to avoid
 unexpected restarts during a test. 关闭触控修正 terminates/reaps the relay and sends
 ACTION_CANCEL if needed. 恢复默认触控 additionally kills stale relay processes,
-clears touch preferences and turns the automatic switch off.
+clears touch preferences and turns automatic following and boot startup off.
 Missing UserService, failed grab, failed injection and unexpected relay exit
 are reported in the UI/logcat. Rotation uses raw 0..16384, the requested four
 formulas, and final clamping to current width-1/height-1. Each new calibration
@@ -69,6 +85,10 @@ No multi-finger support is implemented. Never enable Bridge for this test.
 
 Emergency release: `adb shell pkill -f touch_relay`. Verify `adb shell ps -A`
 contains no touch_relay, then physically confirm native touch works again.
+An unexpected native exit is latched as paused, so the foreground service does
+not undo this emergency stop. Click the desktop enable shortcut to resume.
+USB read/injection failures use the same safe pause. Shizuku Binder loss instead
+waits for Shizuku to return, with the old grab released immediately.
 `adb shell am force-stop com.gitee.connect_screen.touchfix` also triggers the
 APP Binder death guard. To remove the experiment, first release and verify
 touch, then uninstall **only** com.gitee.connect_screen.touchfix. Optionally

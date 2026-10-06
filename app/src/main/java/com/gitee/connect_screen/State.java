@@ -48,9 +48,10 @@ public class State {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder binder) {
             State.log("user service connected");
+            boolean sameOwner = State.userService != null && State.userService.asBinder() == binder;
             State.userService = IUserService.Stub.asInterface(binder);
             try {
-                TouchRotationController.attachClient(State.userService);
+                if (!sameOwner) TouchRotationController.attachClient(State.userService);
             } catch (Exception e) {
                 State.log("触控生命周期保护连接失败：" + e.getMessage());
                 State.userService = null;
@@ -144,6 +145,7 @@ public class State {
     }
 
     public static void unbindUserService() {
+        if (TouchKeepAliveService.isRunning()) return;
         try {
             if (userService == null) {
                 Shizuku.unbindUserService(userServiceArgs, userServiceConnection, true); // 解绑用户服务

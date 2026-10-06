@@ -59,6 +59,17 @@
             android:layout_height="wrap_content"
             android:text="五点标定当前画面触控" />
 
+        <CheckBox
+            android:id="@+id/touch_rotation_boot_checkbox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="开机后自动开启（等待Shizuku就绪）" />
+        <Button
+            android:id="@+id/touch_rotation_pin_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="添加桌面“开启触控修正”按钮" />
+
         <TextView
             android:id="@+id/detail_text"
             android:layout_width="match_parent"

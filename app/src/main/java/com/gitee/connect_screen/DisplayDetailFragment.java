@@ -122,6 +122,12 @@ public class DisplayDetailFragment extends Fragment {
         Button touchReset = view.findViewById(R.id.touch_rotation_reset_button);
         touchAutoFollow = view.findViewById(R.id.touch_rotation_auto_checkbox);
         touchAutoFollow.setChecked(TouchRotationController.isAutoFollowEnabled(requireContext()));
+        CheckBox touchBoot = view.findViewById(R.id.touch_rotation_boot_checkbox);
+        touchBoot.setChecked(TouchKeepAliveService.isBootEnabled(requireContext()));
+        touchBoot.setOnCheckedChangeListener((button, checked) -> TouchRotationController.preferences(requireContext())
+                .edit().putBoolean(TouchKeepAliveService.BOOT, checked).commit());
+        view.findViewById(R.id.touch_rotation_pin_button).setOnClickListener(v ->
+                TouchQuickStartActivity.pinShortcut(requireActivity()));
         View[] controls = {touch90, touch270, touchStop, touchReset, touchAutoFollow};
         touch90.setOnClickListener(v -> changeTouchRotation(1, false, controls));
         touch270.setOnClickListener(v -> changeTouchRotation(3, false, controls));

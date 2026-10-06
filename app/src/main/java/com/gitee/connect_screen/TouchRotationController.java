@@ -72,6 +72,8 @@ public final class TouchRotationController {
         preferences(context).edit().putInt(VISUAL, visualRotation < 0 ? -1 : visualRotation * 90)
                 .putInt("touch_rotation_display", displayId).apply();
         if (visualRotation < 0) {
+            TouchKeepAliveService.disable(context);
+            preferences(context).edit().putBoolean(ENABLED, false).commit();
             stopProxy(context);
         } else if (isAutoFollowEnabled(context)) {
             try { applyTransform(context, visualRotation); }
@@ -114,23 +116,36 @@ public final class TouchRotationController {
     }
     public static synchronized void setAutoFollow(Context context, boolean enabled) throws Exception {
         if (!enabled) {
+            TouchKeepAliveService.disable(context);
             try { stopProxy(context); }
             finally { preferences(context).edit().putBoolean(ENABLED, false).apply(); }
             return;
         }
         requireService();
+        boolean alreadyEnabled = isAutoFollowEnabled(context);
         preferences(context).edit().putBoolean(ENABLED, true).apply();
         int visual = savedVisualRotation(context);
         try {
-            if (visual >= 0) applyTransform(context, visual);
-            else stopProxy(context);
+            if (visual >= 0) {
+                if (!(alreadyEnabled && requireService().isTouchRotationActive())) applyTransform(context, visual);
+            } else stopProxy(context);
+            TouchKeepAliveService.enable(context);
         } catch (Exception e) {
             try { stopProxy(context); } catch (Exception cleanup) { e.addSuppressed(cleanup); }
             preferences(context).edit().putBoolean(ENABLED, false).apply();
             throw e;
         }
     }
+    public static synchronized void resumePersistent(Context context) throws Exception {
+        if (!TouchKeepAliveService.isRequested(context)
+                || preferences(context).getBoolean(TouchKeepAliveService.PAUSED, false)) return;
+        int visual = savedVisualRotation(context);
+        if (visual < 0 || requireService().isTouchRotationActive()) return;
+        preferences(context).edit().putBoolean(ENABLED, true).commit();
+        applyTransform(context, visual);
+    }
     public static synchronized void startDebug(Context context, int transform) throws Exception {
+        TouchKeepAliveService.disable(context);
         preferences(context).edit().putBoolean(ENABLED, false).apply();
         requireService().startTouchRotation("auto", transform, 1080, 1920, 0);
         preferences(context).edit().putInt(TRANSFORM, transform * 90).apply();
@@ -174,12 +189,14 @@ public final class TouchRotationController {
         }
     }
     public static synchronized void stop(Context context) throws Exception {
+        TouchKeepAliveService.disable(context);
         try { stopProxy(context); }
         finally { preferences(context).edit().putBoolean(ENABLED, false).apply(); }
     }
     public static synchronized void reset(Context context) throws Exception {
+        TouchKeepAliveService.disable(context);
         try { requireService().recoverDefaultTouch(); }
-        finally { preferences(context).edit().clear().apply(); }
+        finally { preferences(context).edit().clear().putBoolean(TouchKeepAliveService.BOOT, false).commit(); }
     }
     public static void report(Context context, String message) {
         new Handler(Looper.getMainLooper()).post(() -> {
@@ -188,6 +205,7 @@ public final class TouchRotationController {
         });
     }
     public static void onAppExit() {
+        if (TouchKeepAliveService.isRunning()) return;
         IUserService service = State.userService;
         if (service != null) {
             try { service.stopTouchRotation(); }
