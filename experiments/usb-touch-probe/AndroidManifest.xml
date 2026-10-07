@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.gitee.connect_screen.usbprobe">
+  <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="34" />
+  <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+  <application android:label="USB触屏可行性测试" android:debuggable="true" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:extractNativeLibs="true">
+    <activity android:name=".ProbeActivity" android:exported="true" />
+  </application>
+</manifest>

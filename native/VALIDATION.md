@@ -129,3 +129,97 @@ Version42 (1.3.3-touchfix.10) adds optional local authenticated ADB bootstrap.
 - A temporary location-service diagnostic did not resolve wireless availability;
   location_mode was restored to its original value 0. No wm size/density,
   system rotation, IDC or /system modifications were made.
+
+## OPPO installation and capability checks, 2026-10-06
+
+- Connected target: OPPO PGBM10 / Android 14 / API34 / arm64-v8a. Original
+  com.gitee.connect_screen package retained; installed only the distinct
+  com.gitee.connect_screen.touchfix package, versionCode42 / 1.3.3-touchfix.10.
+- ColorOS app installer required the observed Continue installation button.
+  After confirming it for the named touchfix app, APK installation succeeded.
+- Deployed /data/local/tmp/touch_relay, mode755. Remote SHA256 matched the local
+  verified binary: 6cc20dbe401333c9ff317620a6d83420a2b8e411fa534b1bc3d1b0f89d85dd6a.
+  Executing it with an invalid argument returned the expected exit2 rejection;
+  this checked executable startup without grabbing an input device.
+- Approved the touchfix-specific Shizuku permission prompt. UI showed authorized
+  and user service connected; the shell UserService process was present.
+  Granted notification permission for its foreground service status.
+- External panel appeared at event6: ILITEK ILITEK-TP, USB bus, DIRECT,
+  MT slot, X/Y minimum0 maximum16384. Phone internal touch remained event2.
+  USB identity was read from dumpsys input (bus0x0003/vendor0x222a/product0x0001);
+  ColorOS denied shell reads of /proc/bus/input/devices and the sysfs bus file.
+  The existing read-only checker therefore reports bus verification UNCONFIRMED;
+  this is a diagnostic limitation, not evidence of native-grab success or failure.
+- Phone had an existing wm size override1080x1920, currently landscape1920x1080
+  with phone rotation3; Miracast display6 was1920x1080. No resolution, density
+  or forced rotation changes were made during installation.
+- Opened external display6 details. The proxy remained inactive; no Mate30
+  preferences or measured calibration were imported. New-phone calibration,
+  injection, physical accuracy, background persistence and reboot remain untested.
+- Fixed Windows PowerShell5 native-stderr handling: ADB push progress with exit0
+  must not abort installation. Added a regression case with successful stderr.
+
+## Controlled post-reboot wireless and Shizuku test, 2026-10-06
+
+Question under test: after a phone reboot, can wireless debugging reopen by
+itself and can Shizuku start without manual action?
+
+### Huawei TAS-AN00 / Mate 30 5G (EMUI 13 / Android 12, USB-connected test unit)
+
+- EMUI 13 developer options contain no "无线调试" entry (full list scanned via
+  uiautomator). `settings put global adb_wifi_enabled 1` is not honored: the
+  value read back 0 and `service.adb.tls.port` stayed empty. Android 11+
+  wireless debugging is unavailable on this device.
+- Legacy Wi-Fi ADB was exercised instead. Over USB, `adb tcpip 5555` put adbd
+  in TCP mode and `adb connect 192.0.2.10:5555` authenticated immediately
+  with the existing USB keys. `setprop persist.adb.tcp.port 5555` as shell is
+  denied (SELinux), and `service.adb.tcp.port` is volatile, so TCP mode cannot
+  be made reboot-persistent without root.
+- Controlled reboot (`adb reboot`, boot completed in ~38 s): `adb_wifi_enabled`
+  reset to 0, `service.adb.tcp.port` cleared, `adb connect` refused (10061),
+  `shizuku_server` absent. The version42 local bootstrap could not help: it
+  dials `127.0.0.1:5555`, which is dead until USB adb re-enables tcpip — the
+  phone-side bootstrap cannot lift itself after reboot on this EMUI.
+- The touchfix app itself recovered: after reboot the process was alive and
+  `TouchKeepAliveService` reported `isForeground=true` (boot receiver works);
+  only the ADB/Shizuku layer was missing.
+- PC-side recovery verified twice with `shizuku-autostart/Start-Shizuku.ps1`:
+  over USB right after boot (pid 10145), and — after re-enabling tcpip — over
+  the wireless transport (pid 10505). Note: switching adbd into TCP mode
+  restarts adbd and kills a shell-spawned Shizuku server; the recovery order
+  must be tcpip first, starter second.
+- Later, with USB unplugged (wireless transport only): `service.adb.tcp.port`
+  stayed 5555 and the wireless listener survived, but `shizuku_server` was
+  gone again — the USB state change restarted adbd and its shell-spawned
+  children. On this Mate 30 any adbd restart (tcpip switch, USB plug/unplug)
+  kills the Shizuku server, so the PC starter is also needed after cable
+  changes, not just after reboots.
+
+Verdict: the tested non-root ADB/bootstrap methods do not provide unattended
+phone-side post-reboot recovery on this Mate 30. Verified boundaries: adbd
+exposes no abstract unix socket (`/proc/net/unix` has no @adb entry, so the
+proposed `localabstract:adb` rework has no target to connect to), the
+init-created `/dev/socket/adbd` denies even `shell` a stat (untrusted apps
+cannot use that socket), legacy TCP is off after reboot with
+`persist.adb.tcp.port` writes denied, and Android 11+ wireless debugging is
+absent. Further paths: investigate Shizuku's root boot mode on an already-rooted
+phone (not tested), or keep the phone USB-tethered to this PC where a scheduled
+`ShizukuAutoStart` task restores Shizuku automatically — the task currently
+targets the OPPO serial; re-register with `-Serial DEVICE_SERIAL` to
+retarget it (single-task design, rebuilds the task).
+
+### OPPO PGBM10 (Reno8 5G, Android 14, deployment target, wireless debugging)
+
+- The `ShizukuAutoStart` log recorded automatic server recovery: at 16:32–16:34
+  the OPPO was online wirelessly with Shizuku (pid 1263); at 16:48 the script
+  found the server gone and started Shizuku (pid 28780) over wireless ADB.
+  Server absence does not prove a phone reboot: process termination or an adbd
+  restart can also cause it. This proves PC-side server startup, but does not
+  establish wireless-debugging persistence, mDNS reconnection after reboot,
+  or physical touch recovery. A controlled reboot with a changed boot_id and
+  no manual phone-side startup is required for those claims.
+- A second controlled reboot from the PC could not be run this session: the
+  OPPO left mDNS minutes into the session (screen-off suppression suspected,
+  possibly the phone being handled) and did not re-announce within ~20 minutes.
+  Toggle persistence remains unverified; re-test when
+  the OPPO is awake and visible in `adb mdns services` again.

@@ -127,6 +127,7 @@ public class TouchKeepAliveService extends Service {
         }
     }
     private void tick() throws Exception {
+        if (com.gitee.connect_screen.usbtouch.UsbTouchSettings.selected(this)) { main.post(this::stopSelf); return; }
         if (!isRequested(this)) { main.post(this::stopSelf); return; }
         long generation = TouchRotationController.preferences(this).getLong(GENERATION, 0);
         if (generation != lastGeneration) { lastGeneration = generation; wasRunning = false; nextAttempt = 0; }

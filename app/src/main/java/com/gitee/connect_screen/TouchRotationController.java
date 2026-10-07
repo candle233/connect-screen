@@ -71,6 +71,11 @@ public final class TouchRotationController {
             int visualRotation) throws Exception {
         preferences(context).edit().putInt(VISUAL, visualRotation < 0 ? -1 : visualRotation * 90)
                 .putInt("touch_rotation_display", displayId).apply();
+        if (com.gitee.connect_screen.usbtouch.UsbTouchSettings.selected(context)) {
+            if (visualRotation < 0) com.gitee.connect_screen.usbtouch.UsbTouchSettings.setEnabled(context, false);
+            else com.gitee.connect_screen.usbtouch.UsbTouchAccessibilityService.reloadMapping();
+            return;
+        }
         if (visualRotation < 0) {
             TouchKeepAliveService.disable(context);
             preferences(context).edit().putBoolean(ENABLED, false).commit();
@@ -115,6 +120,12 @@ public final class TouchRotationController {
         preferences(context).edit().putInt(TRANSFORM, transform * 90).apply();
     }
     public static synchronized void setAutoFollow(Context context, boolean enabled) throws Exception {
+        if (com.gitee.connect_screen.usbtouch.UsbTouchSettings.selected(context)) {
+            TouchKeepAliveService.disable(context);
+            stopProxy(context);
+            com.gitee.connect_screen.usbtouch.UsbTouchSettings.setEnabled(context, enabled);
+            return;
+        }
         if (!enabled) {
             TouchKeepAliveService.disable(context);
             try { stopProxy(context); }
@@ -145,6 +156,8 @@ public final class TouchRotationController {
         applyTransform(context, visual);
     }
     public static synchronized void startDebug(Context context, int transform) throws Exception {
+        if (com.gitee.connect_screen.usbtouch.UsbTouchSettings.selected(context))
+            throw new IllegalStateException("请先关闭免电脑触控修正并切回 Shizuku 模式");
         TouchKeepAliveService.disable(context);
         preferences(context).edit().putBoolean(ENABLED, false).apply();
         requireService().startTouchRotation("auto", transform, 1080, 1920, 0);
@@ -189,11 +202,15 @@ public final class TouchRotationController {
         }
     }
     public static synchronized void stop(Context context) throws Exception {
+        if (com.gitee.connect_screen.usbtouch.UsbTouchSettings.selected(context))
+            com.gitee.connect_screen.usbtouch.UsbTouchSettings.setEnabled(context, false);
         TouchKeepAliveService.disable(context);
         try { stopProxy(context); }
         finally { preferences(context).edit().putBoolean(ENABLED, false).apply(); }
     }
     public static synchronized void reset(Context context) throws Exception {
+        if (com.gitee.connect_screen.usbtouch.UsbTouchSettings.selected(context))
+            com.gitee.connect_screen.usbtouch.UsbTouchSettings.setEnabled(context, false);
         TouchKeepAliveService.disable(context);
         try { requireService().recoverDefaultTouch(); }
         finally { preferences(context).edit().clear().putBoolean(TouchKeepAliveService.BOOT, false).commit(); }

@@ -27,6 +27,8 @@ public class TouchRotationTestActivity extends Activity {
         private final Path trail = new Path();
         private float x = -1, y = -1;
         private int moves;
+        private int testDowns, testUps, testMoves, testCancels, maxPointers;
+        private boolean outputCheckStarted;
         private boolean calibrating = getIntent().getBooleanExtra("calibrate", false);
         private boolean fitting;
         private int collected;
@@ -34,6 +36,26 @@ public class TouchRotationTestActivity extends Activity {
         private final float[][] targets = {{.1f,.1f},{.9f,.1f},{.1f,.9f},{.9f,.9f},{.5f,.5f}};
         private String result = "依次触摸 1、2、3、4、5，然后长按、滑动；用返回键退出";
         TouchCanvas() { super(TouchRotationTestActivity.this); }
+
+        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) {
+            super.onSizeChanged(w,h,oldw,oldh);
+            if (!outputCheckStarted && getIntent().getBooleanExtra("usb_output_check",false) && w>0 && h>0) {
+                outputCheckStarted=true;
+                postDelayed(() -> {
+                    boolean started=com.gitee.connect_screen.usbtouch.UsbTouchAccessibilityService.checkOutput(w,h);
+                    result=started?"正在空白画布上检查点击、拖动和双指输出…":"检查未启动：请关闭触控修正开关并启用无障碍服务";
+                    invalidate();
+                },700);
+            }
+        }
+        private void saveUsbEvidence() {
+            com.gitee.connect_screen.usbtouch.UsbTouchSettings.prefs(TouchRotationTestActivity.this).edit()
+                    .putInt("test_boot",android.provider.Settings.Global.getInt(getContentResolver(),android.provider.Settings.Global.BOOT_COUNT,-1))
+                    .putString("test_type",getIntent().getBooleanExtra("usb_output_check",false)?"scripted-output-check":"manual-touch-check")
+                    .putInt("test_downs",testDowns).putInt("test_ups",testUps).putInt("test_moves",testMoves)
+                    .putInt("test_cancels",testCancels).putInt("test_max_pointers",maxPointers)
+                    .putFloat("test_last_x",x).putFloat("test_last_y",y).putLong("test_at",System.currentTimeMillis()).apply();
+        }
 
         @Override protected void onDraw(Canvas canvas) {
             canvas.drawColor(Color.rgb(245, 247, 250));
@@ -65,7 +87,9 @@ public class TouchRotationTestActivity extends Activity {
 
         @Override public boolean onTouchEvent(MotionEvent event) {
             x = event.getX(); y = event.getY();
+            maxPointers=Math.max(maxPointers,event.getPointerCount());
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                testDowns++;
                 if (fitting) return true;
                 moves = 0; trail.reset(); trail.moveTo(x, y);
                 Log.i("TouchRotationTest", "DOWN raw=" + event.getRawX() + "," + event.getRawY()
@@ -91,8 +115,10 @@ public class TouchRotationTestActivity extends Activity {
                     }
                 }
             } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                testMoves++;
                 ++moves; trail.lineTo(x, y);
             } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                testUps++;
                 long duration = event.getEventTime() - event.getDownTime();
                 result = "UP: " + Math.round(event.getRawX()) + "," + Math.round(event.getRawY())
                         + "   " + duration + "ms   MOVE=" + moves;
@@ -100,7 +126,8 @@ public class TouchRotationTestActivity extends Activity {
                 if (calibrating && !fitting && samples[collected] != null) {
                     if (++collected == samples.length) fitCalibration();
                 }
-            } else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) result = "手势已取消";
+            } else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) { testCancels++; result = "手势已取消"; }
+            if (event.getActionMasked()==MotionEvent.ACTION_UP || event.getActionMasked()==MotionEvent.ACTION_CANCEL) saveUsbEvidence();
             invalidate();
             return true;
         }

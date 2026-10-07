@@ -29,6 +29,26 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
+        <activity android:name=".usbtouch.UsbTouchActivity" android:exported="true"
+            android:label="免电脑触控修正" android:icon="@drawable/ic_touch_enable">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/ilitek_touch_device" />
+        </activity>
+        <service android:name=".usbtouch.UsbTouchAccessibilityService" android:exported="true"
+            android:label="免电脑触控修正" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:foregroundServiceType="connectedDevice">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/usb_touch_accessibility" />
+        </service>
+        <receiver android:name=".usbtouch.UsbTouchPermissionReceiver" android:exported="false" />
         
         <activity android:name=".TouchRotationTestActivity" android:exported="false"
             android:theme="@style/AppTheme" />

@@ -14,6 +14,10 @@ public class TouchQuickStartActivity extends Activity {
     private final Shizuku.OnRequestPermissionResultListener permissionResult = (code, result) -> finish();
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (com.gitee.connect_screen.usbtouch.UsbTouchSettings.selected(this)) {
+            startActivity(new Intent(this, com.gitee.connect_screen.usbtouch.UsbTouchActivity.class));
+            finish(); return;
+        }
         if (getIntent().getBooleanExtra("prepare_wireless", false)) {
             new Thread(() -> {
                 try { WirelessShizukuBootstrap.prepare(getApplicationContext()); }

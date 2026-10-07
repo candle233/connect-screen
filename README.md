@@ -24,6 +24,21 @@
 
 通过 QQ 加入群聊 577902537 获取 android apk 安装包
 
+### 触控修正版（当前分支）
+
+当前工作区包含外接 ILITEK USB 触屏旋转坐标修复，独立包名为
+`com.gitee.connect_screen.touchfix`，可与原版并存。原 Shizuku 模式安装需要 APK 和
+`/data/local/tmp/touch_relay` 两部分。Mate 30 新增 USB + 无障碍模式，仅需 APK 和首次
+系统授权，已通过停止 Shizuku 后的物理点击、拖动测试，用户确认真实重启后使用正常。
+
+- [OPPO Reno8 5G / Android 14 安装、标定与恢复](doc/TOUCHFIX_INSTALL_ZH.md)
+- [实现结构、构建与打包](doc/TOUCHFIX_PROJECT.md)
+- [Mate 30 免电脑触控修正与验收记录](doc/USB_TOUCHFIX_ZH.md)
+- Windows 分发包：运行 `tools/Package-TouchFix.ps1`，产物位于 `dist/`。
+- [电脑开机自动启动 Shizuku（Windows 计划任务）](doc/PC_AUTOSTART_SHIZUKU_ZH.md)，脚本位于 `shizuku-autostart/`。
+
+现有物理验证来自 Mate 30；其他手机需重新标定并验收。
+
 ### 本应用不是 DisplayLink 官方应用
 
 本应用使用了DisplayLink®的驱动程序(.so文件)用于支持DisplayLink®设备的连接功能。DisplayLink®是Synaptics Incorporated的注册商标。我们仅将其驱动程序用于实现与DisplayLink®设备的兼容性，未对驱动程序进行任何修改。

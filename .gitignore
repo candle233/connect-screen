@@ -18,3 +18,20 @@ local.properties
 /hidden-api-stub/bin
 /native/bin/
 /diagnostics/
+/dist/
+
+# Local agent state, downloaded apps, and device installation records
+.mimosa/
+/apks/
+/adb-air-screen-bundle/
+/square-home-install/
+/adb-apk-inventory.json
+/adb-install-*.json
+/adb-install-log.txt
+/adb-confirm-install.ps1
+/adb-install-all.ps1
+/adb-install-remaining.ps1
+
+# Signing credentials must stay local
+*.jks
+*.keystore

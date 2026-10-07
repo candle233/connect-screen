@@ -1,4 +1,5 @@
 <resources>
+    <string name="usb_touch_accessibility_description">把您在 ILITEK 外接触屏上的操作转换为校准后的点击和滑动。不读取屏幕内容。首次启用后，可在“免电脑触控修正”中用一个开关开启或关闭。</string>
     <string name="app_name">屏连触控修正版</string>
     <string name="touch_rotation_90">测试90°</string>
     <string name="touch_rotation_270">测试270°</string>
