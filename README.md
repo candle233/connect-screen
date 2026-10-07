@@ -31,10 +31,11 @@
 `/data/local/tmp/touch_relay` 两部分。Mate 30 新增 USB + 无障碍模式，仅需 APK 和首次
 系统授权，已通过停止 Shizuku 后的物理点击、拖动测试，用户确认真实重启后使用正常。
 
+- [详细开发指南：架构、功能修改入口、构建、测试与后续待办](doc/DEVELOPMENT_GUIDE_ZH.md)
 - [OPPO Reno8 5G / Android 14 安装、标定与恢复](doc/TOUCHFIX_INSTALL_ZH.md)
 - [实现结构、构建与打包](doc/TOUCHFIX_PROJECT.md)
 - [Mate 30 免电脑触控修正与验收记录](doc/USB_TOUCHFIX_ZH.md)
-- Windows 分发包：运行 `tools/Package-TouchFix.ps1`，产物位于 `dist/`。
+- Windows 分发工具：`tools/Package-TouchFix.ps1`，产物位于 `dist/`；当前 USB 版本需先完成[打包器适配](doc/DEVELOPMENT_GUIDE_ZH.md#91-当前完整打包器的适配缺口)。
 - [电脑开机自动启动 Shizuku（Windows 计划任务）](doc/PC_AUTOSTART_SHIZUKU_ZH.md)，脚本位于 `shizuku-autostart/`。
 
 现有物理验证来自 Mate 30；其他手机需重新标定并验收。

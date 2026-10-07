@@ -1,5 +1,10 @@
 # Mate 30 single-finger touch relay
 
+This document covers the Shizuku/evdev relay path. The current
+`codex/touchfix-usb` branch also includes a USB/accessibility path with different
+ownership and pointer handling. See the [development guide](../doc/DEVELOPMENT_GUIDE_ZH.md)
+for both architectures, modification entry points, tests, and packaging limitations.
+
 The touchfix APK uses Shizuku's shell UserService to read this relay's stdout and
 inject rotated touchscreen MotionEvents into Display 0 using its current size.
 The test application ID is `com.gitee.connect_screen.touchfix`.
@@ -119,6 +124,7 @@ APP Binder death guard. To remove the experiment, first release and verify
 touch, then uninstall **only** com.gitee.connect_screen.touchfix. Optionally
 remove /data/local/tmp/touch_relay. Never uninstall the official package.
 
-All changes are on `touch-rotation-fix`; the original branch is
+The earlier relay work is on `touch-rotation-fix`; the current development branch is
+`codex/touchfix-usb`. The original branch is
 `feature/force-screen-off-v1.3.3`. Commit the changes before switching branches
 to make rollback independent of uncommitted working-tree files.

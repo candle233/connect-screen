@@ -1,5 +1,10 @@
 # 触控修复项目整理
 
+> 本文描述 versionCode 42 / `1.3.3-touchfix.10` 的 OPPO/Shizuku 分发基线。
+> 当前分支为 versionCode 43 / `1.3.3-touchfix.11-usb`，新增 USB + 无障碍链路。
+> 接手开发、局部修改及当前打包器适配缺口，请先阅读
+> [开发指南](DEVELOPMENT_GUIDE_ZH.md)；USB 模式设备记录见 [免电脑触控修正](USB_TOUCHFIX_ZH.md)。
+
 ## 交付基线
 
 - 应用：屏连触控修正版，`com.gitee.connect_screen.touchfix`，42 / `1.3.3-touchfix.10`。
