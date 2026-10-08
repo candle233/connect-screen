@@ -45,3 +45,5 @@ local.properties
 *.key
 adbkey
 adbkey.pub
+*.pcap
+*.pcapng

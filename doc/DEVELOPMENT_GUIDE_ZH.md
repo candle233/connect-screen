@@ -95,7 +95,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Build-UsbTouchDr
 .\gradlew.bat :app:assembleDebug :app:testDebugUnitTest
 ```
 
-该脚本分别编译 `arm64-v8a` 和 `armeabi-v7a` 的 `libtouchusb.so` 到 `app/src/main/jniLibs/`。这两个文件随源码追踪并由 Gradle 打入 APK；**Gradle 不会自动从 C 源码重建它们**。脚本里的 Zig 路径不是本机路径时先适配脚本。
+该脚本分别编译 `arm64-v8a` 和 `armeabi-v7a` 的 `libtouchusb.so` 到 `app/src/main/jniLibs/`，并移除调试信息，避免将个人构建路径嵌入公开二进制。这两个文件随源码追踪并由 Gradle 打入 APK；**Gradle 不会自动从 C 源码重建它们**。脚本里的 Zig 路径不是本机路径时先适配脚本。
 
 旧 Shizuku relay 修改，在仓库根目录执行：
 
