@@ -1,6 +1,6 @@
 # 安卓屏连触控修正版开发指南
 
-本文用于接手开发、定位功能以及评估局部修改的影响范围。说明基于 `codex/touchfix-usb` 分支的 `356f90d` 源码，整理日期为 2026-10-07。后续实现变化时，应同步更新相关章节和验收记录。
+本文用于接手开发、定位功能以及评估局部修改的影响范围。说明基于 `codex/touchfix-usb` 分支的源码，整理日期为 2026-10-07，隐私脱敏更新于 2026-10-08。历史清理后旧提交哈希会改变，请以当前分支为准。后续实现变化时，应同步更新相关章节和验收记录。
 
 当前应用版本为 **43 / `1.3.3-touchfix.11-usb`**，安装包名为 `com.gitee.connect_screen.touchfix`，Java namespace 仍为 `com.gitee.connect_screen`。本次开发在原安卓屏连项目中增加触控修复，两种实现共存；原有投屏、DisplayLink、屏幕设置、模拟熄屏和 X11 功能仍在同一个工程内。
 
@@ -128,7 +128,7 @@ wsl.exe --exec sh native/build.sh
 | [native/touch_relay.c](../native/touch_relay.c) | 旧 evdev 读取、设备核验、独占和释放 | READY 握手、D/M/U 协议、slot 0 |
 | [native/usb_touch_guard.c](../native/usb_touch_guard.c)、[UsbDriver](../app/src/main/java/com/gitee/connect_screen/usbtouch/UsbDriver.java) | 已授权 USB fd 的驱动 reconnect JNI | JNI 符号名、CPU ABI、ioctl 布局 |
 | [deployment](../deployment/)、[tools](../tools/) | 安装模板、检查、模拟 ADB 测试、构建与打包工具 | 分发目录、版本、哈希、源码白名单 |
-| [experiments/usb-touch-probe](../experiments/usb-touch-probe/) | 独立 USB 诊断 APK、HID 描述符与原始报告分析 | 不是主应用驱动；build.ps1 尚有原开发机固定路径 |
+| [experiments/usb-touch-probe](../experiments/usb-touch-probe/) | 独立 USB 诊断 APK、HID 描述符与原始报告分析 | 不是主应用驱动；build.ps1 通过 SDK/JDK 参数或环境变量配置 |
 | [shizuku-autostart](../shizuku-autostart/)、[WirelessShizukuBootstrap](../app/src/main/java/com/gitee/connect_screen/WirelessShizukuBootstrap.java) | Windows 启动 Shizuku / 手机本地实验 bootstrap | 两种实现不同，不能作为 USB 模式的依赖 |
 
 原项目其他功能的入口：
@@ -502,6 +502,8 @@ adb -s $deviceSerial shell ps -A
 回退代码建议新建分支保留当前修订：`git switch -c codex/your-change`。恢复旧 APK 同样要核对签名和版本兼容，避免清数据导致校准丢失。原正式应用与 `.touchfix` 是不同安装包，停止或卸载时准确指定后者。
 
 ## 10. 后续开发优先级与交接模板
+
+上传前应检查文件内容与 Git 历史：不提交真实设备序列号、ADB 内网地址、boot_id、个人目录、账号凭据、私钥及本机诊断记录。设备记录使用占位符，完整原始证据留在被忽略的 `diagnostics/`。提交身份使用 GitHub 用户名和 noreply 邮箱。将文件加入 `.gitignore` 不会清除已经追踪或已经发布的历史；相关历史需要独立清理，并核对远端各分支与标签。
 
 下面是建议待办，不是已实现功能：
 

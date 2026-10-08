@@ -1,7 +1,9 @@
 # Mate 30 USB host feasibility experiment
 
 This is a separate bounded diagnostic APK, not a working replacement touch mapper.
-Build locally with `powershell -File build.ps1` (existing Android SDK/JDK and WSL Zig).
+Build locally with `powershell -File build.ps1 -SdkDirectory C:\Dev\Android\Sdk -JavaHome C:\Dev\jdk-17`
+(existing Android SDK/JDK and WSL Zig). Alternatively set `ANDROID_SDK_ROOT` and `JAVA_HOME`.
+Use `-WslZigPath` when Zig is not installed at `/usr/sbin/zig`.
 It has no Shizuku dependency, accessibility service, input injection, or boot receiver.
 
 ## Verified on 2026-10-06

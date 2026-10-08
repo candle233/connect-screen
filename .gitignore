@@ -35,3 +35,13 @@ local.properties
 # Signing credentials must stay local
 *.jks
 *.keystore
+
+# Machine-specific project state and local transfer artifacts
+/.idea/
+/android-sdk/
+/connect-screen-stage1-touchfix.patch
+/touch_grab
+*.pem
+*.key
+adbkey
+adbkey.pub
